@@ -18,8 +18,17 @@ test('Supabase policy migration: denied client table access and RPC execution; t
       '002_snapshots.sql',
       '003_supabase_security.sql',
       '004_signup_hook.sql',
+      '20261003151234_private_realtime_authorization.sql',
     ])
       await db.exec(await readFile(`database/migrations/${file}`, 'utf8'));
+    assert.equal(
+      (
+        await db.query<{ r: string | null }>(
+          "select to_regprocedure('public.can_receive_quiz_topic(text)')::text r",
+        )
+      ).rows[0].r,
+      null,
+    );
     assert.deepEqual(
       (
         await db.query<{ r: unknown }>(
@@ -44,6 +53,7 @@ test('Supabase policy migration: denied client table access and RPC execution; t
       [q],
     );
     await db.query('insert into quiz_live_state(quiz_id) values($1)', [q]);
+    await db.exec("insert into realtime.messages values (0,'broadcast')");
     await db.query(
       "insert into quiz_members(quiz_id,auth_uid,role,display_name) values($1,$2,'QUIZMASTER','Host'),($1,$3,'AUDIENCE','Display')",
       [q, host, p],
@@ -56,11 +66,18 @@ test('Supabase policy migration: denied client table access and RPC execution; t
       /permission denied/,
     );
     const can = async (topic: string) =>
-      (await db.query<{ ok: boolean }>('select can_receive_quiz_topic($1) ok', [topic])).rows[0].ok;
+      (
+        await db.query<{ ok: boolean }>('select quiz_private.can_receive_quiz_topic($1) ok', [
+          topic,
+        ])
+      ).rows[0].ok;
     assert.equal(await can(`quiz:${q}:1:display`), true);
     assert.equal(await can(`quiz:${q}:1:staff`), false);
     assert.equal(await can(`quiz:${q}:2:display`), false);
     await db.query("select set_config('realtime.topic',$1,false)", [`quiz:${q}:1:display`]);
+    assert.equal((await db.query('select * from realtime.messages')).rows.length, 1);
+    await db.query("select set_config('realtime.topic',$1,false)", [`quiz:${q}:1:staff`]);
+    assert.equal((await db.query('select * from realtime.messages')).rows.length, 0);
     await assert.rejects(
       db.query("insert into realtime.messages values(1,'broadcast')"),
       /row-level security/,

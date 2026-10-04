@@ -52,7 +52,7 @@ Production defaults to **practice mode disabled**, even if Supabase credentials 
 
 Use a fresh dedicated Supabase project. The migrations are initial migrations, not idempotent reset scripts.
 
-1. Apply `database/migrations/001_core.sql`, `002_snapshots.sql`, `003_supabase_security.sql`, and `004_signup_hook.sql` **in order** using the Supabase SQL editor or your migration runner. The last two are Supabase-only; practice mode uses the first two.
+1. Apply `database/migrations/001_core.sql`, `002_snapshots.sql`, `003_supabase_security.sql`, `004_signup_hook.sql`, and `20261003151234_private_realtime_authorization.sql` **in order** using the Supabase SQL editor or your migration runner. The last three are Supabase-only; practice mode uses the first two. Realtime authorization helpers live in the unexposed `quiz_private` schema.
 2. Create the owner’s email/password Auth user in the dashboard **before enabling the signup hook**. Add the owner's Auth UUID:
 
    ```sql
