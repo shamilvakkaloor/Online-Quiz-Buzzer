@@ -87,7 +87,15 @@ Set the build command to `npm run build`, the start command to `npm start`, and 
 
 Check `/api/health`, HTTPS, and `Cache-Control: no-store` on all API and live routes. Configure the CDN to bypass these routes. The app supplies no-store headers; the hosting/CDN configuration must honor them. Test burst POSTs from the venue Wi-Fi against the actual WAF. Keep backups and export results after each event.
 
-**Deployment has not been performed.** No Supabase project, Hostinger account, public URL or production credentials were supplied. Real Auth, Realtime connectivity, venue latency, hosting quotas, and WAF behavior require the deployment rehearsal below.
+**Deployed on 4 October 2026:** [Live app](https://honeydew-mule-441219.hostingersite.com) · [Owner workspace](https://honeydew-mule-441219.hostingersite.com/admin). Hostinger deploys `main` from this repository automatically. Supabase runs in Mumbai. Production practice mode is disabled, private Realtime authorization is enabled, and permanent public signup is blocked by the Auth hook.
+
+`npm run build` explicitly uses webpack because Hostinger's build environment failed to start a Turbopack CSS worker. The environment names above also accept Supabase's modern publishable (`NEXT_PUBLIC_SUPABASE_ANON_KEY`) and secret (`SUPABASE_SERVICE_ROLE_KEY`) keys. The secret key is stored only in Hostinger's server environment and ignored local provisioning files.
+
+Owner credentials are delivered privately outside this repository. CAPTCHA is not yet configured. Anonymous sign-in capacity is set to 100 per hour per IP to accommodate a 50-team venue; retain browser sessions between rounds. Rehearse from the venue network before a real event and review the deployment checks below.
+
+Deployment checks passed: HTTPS and no-store responses on all role pages; healthy Supabase connection; owner sign-in; disabled production demo endpoint; 50 joined teams across 20 rounds with 1,200 buzz requests (including duplicates), contiguous ranks, and 1,000 accepted-buzz recovery checks. Real Supabase sockets received private staff/display snapshots, denied participant access to staff, rejected forged client broadcasts, and stopped delivering new snapshots to a revoked connection. Audience/scorekeeper joins and decimal score revisions also passed. The test quiz is retained as a completed **Deployment rehearsal — 50 teams** event for audit.
+
+**Observed capacity limit:** this remote 50-team burst rehearsal had per-round median response times of 2.6–3.1 seconds, p95 of 4.3–4.9 seconds, and a maximum of 5.3 seconds. Correctness passed, but this is not a low-latency event certification. These checks did not exercise 50 simultaneous browser sockets, venue Wi-Fi, a forced hosting restart, or configured CAPTCHA. Review hosting/database placement and capacity, then repeat a venue rehearsal before a time-sensitive event.
 
 ## Tests and rehearsal
 
