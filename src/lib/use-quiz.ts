@@ -20,7 +20,6 @@ export function useQuiz(role: Role) {
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [connected, setConnected] = useState(false),
-    [presenceOnline, setPresenceOnline] = useState<Record<string, boolean>>({}),
     [offset, setOffset] = useState(0);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -82,7 +81,10 @@ export function useQuiz(role: Role) {
   useEffect(() => {
     void refresh();
     if (!session) return;
-    const interval = setInterval(() => void refresh(), config?.demo ? 1500 : 5000);
+    const interval = setInterval(
+      () => void refresh(),
+      config?.demo ? 1500 : 8000 + Math.random() * 4000,
+    );
     const online = () => void refresh();
     window.addEventListener('online', online);
     return () => {
@@ -142,14 +144,14 @@ export function useQuiz(role: Role) {
                 buzz_count: payload.buzz_count,
                 leaderboard: payload.leaderboard,
                 scoring: payload.scoring,
+                own_buzz: payload.session?.id !== old.session?.id ? null : old.own_buzz,
+                questions: payload.questions?.length ? payload.questions : old.questions,
+                scores: payload.scores ?? old.scores,
               }
             : old,
         );
-        void refresh();
+        setConnected(true);
       });
-    const presence = client.channel(`${topic}:presence:${state.member.id}`, {
-      config: { private: true, presence: { key: state.member.id } },
-    });
     void getToken()
       .then(async (token) => {
         if (disposed) return;
@@ -161,56 +163,17 @@ export function useQuiz(role: Role) {
             void refresh();
           }
         });
-        presence.subscribe((status) => {
-          if (status === 'SUBSCRIBED') void presence.track({ online_at: new Date().toISOString() });
-        });
       })
       .catch(() => setConnected(false));
     return () => {
       disposed = true;
       void client.removeChannel(channel);
-      void client.removeChannel(presence);
     };
   }, [config, session, role, epoch, state?.member?.id, getToken, refresh]);
-  const presenceMembers =
-    state?.members
-      .filter((member) => member.participant_id && !member.revoked_at)
-      .map((member) => `${member.id}:${member.participant_id}`)
-      .sort()
-      .join(',') || '';
-  useEffect(() => {
-    setPresenceOnline({});
-    if (!config || config.demo || !session || !epoch || !presenceMembers) return;
-    const supabase = browserClient(config, role);
-    const observers = presenceMembers.split(',').map((entry) => {
-      const [memberId, participantId] = entry.split(':');
-      const channel = supabase.channel(`quiz:${session.quiz_id}:${epoch}:presence:${memberId}`, {
-        config: { private: true },
-      });
-      channel
-        .on('presence', { event: 'sync' }, () => {
-          // The topic identifies the member. Never trust client-supplied identity fields.
-          setPresenceOnline((old) => ({
-            ...old,
-            [participantId]: Object.keys(channel.presenceState()).length > 0,
-          }));
-        })
-        .subscribe();
-      return channel;
-    });
-    return () => {
-      observers.forEach((channel) => {
-        void supabase.removeChannel(channel);
-      });
-    };
-  }, [config, session, role, epoch, presenceMembers]);
   function isParticipantOnline(participant: Participant) {
-    return (
-      presenceOnline[participant.id] ??
-      !!(
-        participant.last_seen_at &&
-        Date.now() + offset - new Date(participant.last_seen_at).getTime() < 20000
-      )
+    return !!(
+      participant.last_seen_at &&
+      Date.now() + offset - new Date(participant.last_seen_at).getTime() < 40000
     );
   }
   const call = useCallback(
@@ -224,7 +187,8 @@ export function useQuiz(role: Role) {
       setError('');
       try {
         const result = await call(path, body);
-        await refresh();
+        if (path === 'buzz') void refresh();
+        else await refresh();
         return result;
       } catch (e) {
         setError((e as Error).message);

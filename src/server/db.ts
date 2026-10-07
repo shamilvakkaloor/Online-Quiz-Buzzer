@@ -22,7 +22,11 @@ export async function localDb() {
     const db = new PGlite(path.join(process.cwd(), '.local', 'quiz-db'));
     await db.waitReady;
     await db.exec('create table if not exists app_migrations (name text primary key)');
-    for (const name of ['001_core.sql', '002_snapshots.sql']) {
+    for (const name of [
+      '001_core.sql',
+      '002_snapshots.sql',
+      '20261005161120_event_experience_v2.sql',
+    ]) {
       if (!(await db.query('select name from app_migrations where name=$1', [name])).rows.length) {
         const sql = await readFile(
           path.join(process.cwd(), 'database', 'migrations', name),

@@ -23,6 +23,8 @@ import {
 import type { Role } from '@/types/quiz';
 import { useQuiz } from '@/lib/use-quiz';
 import { Avatar, Badge, Brand, Modal, Spinner } from './ui';
+import { QuizFinale } from './quiz-finale';
+import { SoundButton } from './ui';
 import { JoinScreen } from './join-screen';
 import { AdminScreen } from './admin-screen';
 import { PlayerScreen } from './player-screen';
@@ -181,6 +183,7 @@ export function QuizApp({ role }: { role: Role }) {
             </Badge>
           </div>
           <div className="header-actions">
+            <SoundButton count={s.buzz_count} state={s} offset={client.offset} />
             <span className={`connection ${client.connected ? '' : 'offline'}`}>
               <i />
               {client.connected
@@ -202,6 +205,7 @@ export function QuizApp({ role }: { role: Role }) {
           </div>
         </header>
         <main className="workspace-content">
+          <QuizFinale state={s} />
           {client.error && (
             <div className="toast-error" role="alert">
               <span>{client.error}</span>

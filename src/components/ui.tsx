@@ -114,37 +114,118 @@ export function useTimer(state: Snapshot, offset: number) {
     seconds,
   };
 }
-export function SoundButton({ count }: { count: number }) {
+export function SoundButton({
+  count,
+  state,
+  offset = 0,
+}: {
+  count: number;
+  state?: Snapshot;
+  offset?: number;
+}) {
   const [enabled, setEnabled] = useState(false),
-    context = useRef<AudioContext | null>(null),
-    previous = useRef(count);
-  function beep() {
+    context = useRef<AudioContext | null>(null);
+  const previous = useRef<Snapshot | undefined>(state),
+    previousCount = useRef(count),
+    tick = useRef('');
+  function tone(frequency = 740, duration = 0.14, delay = 0) {
     const ctx = context.current;
-    if (!ctx) return;
-    const oscillator = ctx.createOscillator(),
-      gain = ctx.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(740, ctx.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(1040, ctx.currentTime + 0.12);
-    gain.gain.setValueAtTime(0.07, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.start();
-    oscillator.stop(ctx.currentTime + 0.25);
+    if (!ctx || ctx.state !== 'running') return;
+    const o = ctx.createOscillator(),
+      g = ctx.createGain(),
+      at = ctx.currentTime + delay;
+    o.type = 'sine';
+    o.frequency.setValueAtTime(frequency, at);
+    g.gain.setValueAtTime(0.06, at);
+    g.gain.exponentialRampToValueAtTime(0.001, at + duration);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start(at);
+    o.stop(at + duration);
   }
   useEffect(() => {
-    if (enabled && count > previous.current) beep();
-    previous.current = count;
-  }, [count, enabled]);
+    const old = previous.current;
+    if (enabled) {
+      if (count > previousCount.current) tone(880, 0.2);
+      if (state && old) {
+        if (state.session?.id !== old.session?.id) {
+          tone(660);
+          tone(990, 0.2, 0.16);
+        }
+        if (state.live.is_paused !== old.live.is_paused)
+          tone(state.live.is_paused ? 330 : 660, 0.22);
+        if (state.session?.status === 'LOCKED' && old.session?.status === 'OPEN') tone(220, 0.3);
+        if (state.live.status === 'COMPLETED' && old.live.status !== 'COMPLETED') {
+          [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.3, i * 0.16));
+        } else if (state.live.leaderboard_visible && !old.live.leaderboard_visible) {
+          tone(784, 0.2);
+          tone(1046, 0.3, 0.18);
+        }
+      }
+    }
+    previous.current = state;
+    previousCount.current = count;
+  }, [state, count, enabled]);
+  useEffect(() => {
+    if (
+      !enabled ||
+      !state?.live.timer_started_at ||
+      state.live.is_paused ||
+      state.question?.status !== 'ACTIVE'
+    )
+      return;
+    const check = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil(
+          (new Date(state.live.timer_started_at!).getTime() +
+            (state.live.timer_duration_ms || 0) -
+            Date.now() -
+            offset) /
+            1000,
+        ),
+      );
+      const key = state.live.timer_started_at + ':' + remaining;
+      if (key === tick.current) return;
+      tick.current = key;
+      if (remaining <= 10)
+        tone(remaining === 0 ? 180 : remaining <= 3 ? 1046 : 660, remaining === 0 ? 0.7 : 0.09);
+    };
+    check();
+    const id = setInterval(check, 100);
+    return () => clearInterval(id);
+  }, [
+    enabled,
+    state?.live.timer_started_at,
+    state?.live.timer_duration_ms,
+    state?.live.is_paused,
+    state?.question?.status,
+    offset,
+  ]);
+  useEffect(() => {
+    if (!enabled) return;
+    const click = (e: MouseEvent) => {
+      if ((e.target as Element).closest('button:not(:disabled),a')) tone(460, 0.035);
+    };
+    document.addEventListener('click', click);
+    return () => document.removeEventListener('click', click);
+  }, [enabled]);
+  useEffect(
+    () => () => {
+      void context.current?.close();
+    },
+    [],
+  );
   return (
     <button
       className={`button quiet ${enabled ? 'sound-on' : ''}`}
       aria-label={enabled ? 'Disable sound' : 'Enable sound'}
+      aria-pressed={enabled}
       onClick={() => {
         context.current ??= new AudioContext();
-        void context.current.resume();
-        if (!enabled) beep();
+        void context.current.resume().then(() => {
+          if (!enabled) tone();
+        });
         setEnabled(!enabled);
       }}
     >

@@ -12,7 +12,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import type { QuizClient } from '@/lib/use-quiz';
-import { Badge, Brand, Empty, Modal, Spinner } from './ui';
+import { Badge, Brand, Empty, Modal, Spinner, SoundButton } from './ui';
 import { SectionHeading } from './workspace-views';
 type Quiz = {
   id: string;
@@ -88,6 +88,7 @@ export function AdminScreen({ client }: { client: QuizClient }) {
     <div className="admin-page">
       <header className="player-header">
         <Brand />
+        <SoundButton count={0} />
         <div>
           <Badge>
             <ShieldCheck size={13} />

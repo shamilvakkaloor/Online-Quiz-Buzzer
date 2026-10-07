@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Check, Flag, LogOut, Maximize2, Radio, Sparkles, Trophy, Zap } from 'lucide-react';
 import type { QuizClient } from '@/lib/use-quiz';
 import { Avatar, Badge, Brand, SoundButton, useTimer } from './ui';
+import { QuizFinale } from './quiz-finale';
 import { Leaderboard } from './workspace-views';
 export function PlayerScreen({
   client,
@@ -19,6 +20,7 @@ export function PlayerScreen({
     rank = s.own_buzz?.official_rank ?? (ack && ack.id === s.session?.id ? ack.rank : null),
     canBuzz =
       client.connected &&
+      s.live.status === 'LIVE' &&
       s.session?.status === 'OPEN' &&
       !s.live.is_paused &&
       !accepted &&
@@ -53,6 +55,7 @@ export function PlayerScreen({
     <div className={`player-page ${audience ? 'audience-page' : ''}`}>
       <header className="player-header">
         <Brand />
+        <SoundButton count={s.buzz_count} state={s} offset={client.offset} />
         <div>
           <Badge tone={client.connected ? 'green' : 'amber'}>
             {client.connected
@@ -102,7 +105,8 @@ export function PlayerScreen({
             {s.subround ? ` / ${s.subround.name}` : ''}
           </p>
         </div>
-        {audience ? (
+        <QuizFinale state={s} />
+        {s.live.status === 'COMPLETED' ? null : audience ? (
           <>
             <div className="audience-status">
               <Badge tone={s.session?.status === 'OPEN' && !s.live.is_paused ? 'green' : 'neutral'}>
@@ -115,7 +119,6 @@ export function PlayerScreen({
                       : 'Standing by'}
               </Badge>
               {s.live.timer_duration_ms && <strong>{timer.text}</strong>}
-              <SoundButton count={s.buzz_count} />
             </div>
             <div className="audience-content">
               <section className="card audience-buzzes">

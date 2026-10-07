@@ -74,7 +74,12 @@ async function handler(req: Request, ctx: { params: Promise<{ path: string[] }> 
       return json({ token: await demoToken(randomUUID()), quiz_id: quiz });
     }
     const actor = await identity(req);
-    await limit(`api:${actor}`, 600, 60);
+    if (path !== 'buzz') await limit(`api:${actor}`, 600, 60);
+    if (path === 'join-info' && post) {
+      const { code } = joinSchema.parse(body);
+      await limit(`join-info:${actor}`, 30, 300);
+      return json(await rpc('participant_code_info', { p_code: code }));
+    }
     if (path === 'auth/quizmaster/login' || path.startsWith('join/')) {
       if (!post) return json({ error: 'Method not allowed' }, 405);
       const input = joinSchema.parse(body);
@@ -108,7 +113,7 @@ async function handler(req: Request, ctx: { params: Promise<{ path: string[] }> 
         p_auth: actor,
         p_role: role,
         p_code: input.code,
-        p_name: input.display_name || role,
+        p_name: input.display_name || (role === 'PARTICIPANT' ? '' : role),
         ...(quizId ? { p_quiz: quizId } : {}),
       });
       markDirty(result.quiz_id);
@@ -180,9 +185,8 @@ async function handler(req: Request, ctx: { params: Promise<{ path: string[] }> 
     if (!post) return json({ error: 'Not found' }, 404);
     let result: unknown;
     if (path === 'buzz') {
-      await limit(`buzz:${actor}:${quiz}`, 20, 10);
       const data = z.object({ buzzer_session_id: uuid }).strict().parse(body);
-      result = await rpc('record_buzz', {
+      result = await rpc('api_record_buzz', {
         p_auth: actor,
         p_quiz: quiz,
         p_session: data.buzzer_session_id,

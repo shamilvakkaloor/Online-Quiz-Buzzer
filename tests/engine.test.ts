@@ -13,7 +13,11 @@ async function call<T = any>(fn: string, ...args: unknown[]): Promise<T> {
 }
 before(async () => {
   db = new PGlite();
-  for (const file of ['001_core.sql', '002_snapshots.sql'])
+  for (const file of [
+    '001_core.sql',
+    '002_snapshots.sql',
+    '20261005161120_event_experience_v2.sql',
+  ])
     await db.exec(await readFile(`database/migrations/${file}`, 'utf8'));
 });
 after(async () => await db.close());
@@ -27,6 +31,10 @@ async function fixture(count = 3) {
     password_hash: 'test-only',
   });
   await call('join_quiz', host, 'QUIZMASTER', '', 'Host', quiz);
+  await db.query('update quiz_settings set max_buzzes_per_question=$1 where quiz_id=$2', [
+    count === 100 ? 100 : 50,
+    quiz,
+  ]);
   const { id: round } = await call('setup_quiz', host, quiz, 'rounds', { name: 'Round' });
   await call('setup_quiz', host, quiz, 'questions', { round_id: round, count: 3 });
   await call('setup_quiz', host, quiz, 'participants', {
@@ -52,6 +60,47 @@ async function fixture(count = 3) {
   await cmd('START_QUESTION');
   return { admin, host, quiz, round, players, state, cmd };
 }
+test('100 participant capacity, duplicate-safe API buzzes, and enforced maximum', async () => {
+  const f = await fixture(100),
+    s = await f.state();
+  const buzzes = await Promise.all(
+    f.players.map((p) => call('api_record_buzz', p.auth, f.quiz, s.session.id)),
+  );
+  assert.deepEqual(
+    buzzes.map((b) => b.official_rank).sort((a, b) => a - b),
+    Array.from({ length: 100 }, (_, i) => i + 1),
+  );
+  assert.equal(
+    (await call('api_record_buzz', f.players[0].auth, f.quiz, s.session.id)).was_duplicate,
+    true,
+  );
+  await assert.rejects(
+    call('setup_quiz', f.host, f.quiz, 'participants', { display_name: 'Overflow' }),
+    /PARTICIPANT_LIMIT/,
+  );
+  assert.equal((await f.state()).session.status, 'LOCKED');
+});
+test('timer auto-start is opt-in, personal codes preserve names, and finish reveal is explicit', async () => {
+  const f = await fixture(),
+    s = await f.state();
+  assert.equal(s.live.timer_started_at, null);
+  const info = await call('participant_code_info', f.players[0].join_code);
+  assert.equal(info.individual, true);
+  assert.equal(info.display_name, f.players[0].display_name);
+  await assert.rejects(call('participant_code_info', 'INVALID'), /INVALID_CODE/);
+  await f.cmd('COMPLETE_QUESTION');
+  await call('setup_quiz', f.host, f.quiz, 'settings', { ...s.settings, auto_start_timer: true });
+  await f.cmd('START_QUESTION');
+  assert.ok((await f.state()).live.timer_started_at);
+  await f.cmd('COMPLETE_QUESTION');
+  await f.cmd('FINISH_QUIZ', { value: false });
+  let p = await call('get_snapshot', f.players[0].auth, f.quiz);
+  assert.equal(p.live.status, 'COMPLETED');
+  assert.deepEqual(p.leaderboard, []);
+  await f.cmd('REVEAL_LEADERBOARD');
+  p = await call('get_snapshot', f.players[0].auth, f.quiz);
+  assert.equal(p.leaderboard.length, 3);
+});
 test('60 simultaneous attempts: 50 distinct ranks, contiguous, duplicate-safe, record cap', async () => {
   const f = await fixture(50),
     state = await f.state(),

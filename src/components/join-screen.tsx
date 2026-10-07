@@ -16,6 +16,10 @@ export function JoinScreen({ client, role }: { client: QuizClient; role: Role })
     [error, setError] = useState('');
   const [captchaToken, setCaptchaToken] = useState(''),
     [captchaAttempt, setCaptchaAttempt] = useState(0);
+  const [participantInfo, setParticipantInfo] = useState<{
+    individual: boolean;
+    display_name?: string;
+  } | null>(null);
   useEffect(() => {
     setCode(new URLSearchParams(location.search).get('code') || '');
   }, []);
@@ -76,11 +80,19 @@ export function JoinScreen({ client, role }: { client: QuizClient; role: Role })
         }
         token = session!.access_token;
       }
+      if (role === 'PARTICIPANT' && !participantInfo) {
+        setParticipantInfo(await request('join-info', null, { code }, token));
+        return;
+      }
       const path = role === 'QUIZMASTER' ? 'auth/quizmaster/login' : `join/${role.toLowerCase()}`;
       const result = await request<{ quiz_id: string; pending?: boolean }>(
         path,
         null,
-        { code, display_name: name || undefined, ...(role === 'QUIZMASTER' ? { password } : {}) },
+        {
+          code,
+          display_name: participantInfo?.individual ? undefined : name || undefined,
+          ...(role === 'QUIZMASTER' ? { password } : {}),
+        },
         token,
       );
       const next = { token, quiz_id: result.quiz_id };
@@ -220,23 +232,36 @@ export function JoinScreen({ client, role }: { client: QuizClient; role: Role })
                     autoComplete="off"
                     value={code}
                     maxLength={40}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      setCode(e.target.value.toUpperCase());
+                      setParticipantInfo(null);
+                    }}
                     placeholder="ENTER CODE"
                   />
                 </label>
               )}
-              {role !== 'ADMIN' && (
-                <label>
-                  {role === 'PARTICIPANT' ? 'Your name or team' : 'Your display name'}
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required={role === 'QUIZMASTER'}
-                    maxLength={100}
-                    placeholder={role === 'PARTICIPANT' ? 'What should we call you?' : 'Your name'}
-                  />
-                </label>
+              {participantInfo?.individual && (
+                <div className="join-identity">
+                  <small>YOU’RE JOINING AS</small>
+                  <h3>{participantInfo.display_name}</h3>
+                  <p>This personal code uses the name set by your quizmaster.</p>
+                </div>
               )}
+              {role !== 'ADMIN' &&
+                (role !== 'PARTICIPANT' || participantInfo?.individual === false) && (
+                  <label>
+                    {role === 'PARTICIPANT' ? 'Your name or team' : 'Your display name'}
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required={role === 'QUIZMASTER' || role === 'PARTICIPANT'}
+                      maxLength={100}
+                      placeholder={
+                        role === 'PARTICIPANT' ? 'What should we call you?' : 'Your name'
+                      }
+                    />
+                  </label>
+                )}
               {(role === 'ADMIN' || role === 'QUIZMASTER') && (
                 <label>
                   Password
@@ -273,7 +298,11 @@ export function JoinScreen({ client, role }: { client: QuizClient; role: Role })
                   <Spinner />
                 ) : (
                   <>
-                    {role === 'QUIZMASTER' || role === 'ADMIN' ? 'Enter workspace' : 'Join quiz'}
+                    {role === 'QUIZMASTER' || role === 'ADMIN'
+                      ? 'Enter workspace'
+                      : role === 'PARTICIPANT' && !participantInfo
+                        ? 'Continue'
+                        : 'Join quiz'}
                     <ArrowRight size={18} />
                   </>
                 )}

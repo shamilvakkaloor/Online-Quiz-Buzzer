@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { AppInstall } from '@/components/app-install';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Buzzer — make every second count',
@@ -9,7 +10,10 @@ export const metadata: Metadata = {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <AppInstall />
+      </body>
     </html>
   );
 }

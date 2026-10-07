@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { AccessCardDownload } from './access-card';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   ArrowDownToLine,
@@ -76,7 +77,7 @@ export function Leaderboard({ state, compact = false }: { state: Snapshot; compa
   return (
     <div className={compact ? 'leaderboard compact' : 'leaderboard'}>
       {state.leaderboard.length ? (
-        state.leaderboard.slice(0, compact ? 5 : 50).map((row, i) => (
+        state.leaderboard.slice(0, compact ? 5 : 100).map((row, i) => (
           <div className="leader-row" key={row.participant_id}>
             <span className={`leader-rank ${i === 0 ? 'first' : ''}`}>
               {i === 0 ? <Trophy size={16} /> : String(row.rank).padStart(2, '0')}
@@ -217,7 +218,7 @@ export function ParticipantsView({ client }: { client: QuizClient }) {
           </Empty>
         )}
         <div className="table-footer">
-          {s.participants.length} of {s.settings?.max_participants || 50} places filled
+          {s.participants.length} of {s.settings?.max_participants || 100} places filled
           <span>One active device per participant</span>
         </div>
       </div>
@@ -294,6 +295,12 @@ function ParticipantModal({
               <CopyButton value={link} />
             </div>
             <p>Scan to join. Keep this code with your team.</p>
+            <AccessCardDownload
+              title={client.state!.quiz.title}
+              label={p.display_name}
+              code={p.join_code}
+              link={link}
+            />
           </>
         ) : (
           <p>The join code is disabled.</p>
@@ -417,7 +424,7 @@ export function QuestionsView({ client }: { client: QuizClient }) {
                   <h3>{r.name}</h3>
                   <p>
                     {s.questions.filter((q) => q.round_id === r.id).length} questions ·{' '}
-                    {r.uses_subrounds ? 'With subrounds' : 'Classic round'}
+                    {r.uses_subrounds ? 'With subrounds' : 'No subrounds'}
                   </p>
                 </div>
               </div>
@@ -1126,6 +1133,18 @@ export function AccessView({ client }: { client: QuizClient }) {
               <Badge tone={a.active ? 'green' : 'neutral'}>
                 {a.active ? 'Access enabled' : 'Access disabled'}
               </Badge>
+              <AccessCardDownload
+                title={s.quiz.title}
+                label={
+                  a.kind === 'PARTICIPANT'
+                    ? 'Open join'
+                    : a.kind === 'SCOREKEEPER'
+                      ? 'Scorekeeper'
+                      : 'Audience'
+                }
+                code={a.code}
+                link={link}
+              />
               <div className="access-actions">
                 <button
                   className="button small"
@@ -1245,7 +1264,7 @@ export function SettingsView({ client }: { client: QuizClient }) {
                 type="number"
                 value={values.max_participants}
                 min={s.participants.length || 1}
-                max={50}
+                max={100}
                 required
                 onChange={(e) => field('max_participants', Number(e.target.value))}
               />
@@ -1258,8 +1277,8 @@ export function SettingsView({ client }: { client: QuizClient }) {
             </div>
             {(
               [
-                { key: 'max_buzzes_per_question', label: 'Maximum recorded buzzes', max: 50 },
-                { key: 'auto_lock_after', label: 'Auto-lock after buzzes (blank = off)', max: 50 },
+                { key: 'max_buzzes_per_question', label: 'Maximum recorded buzzes', max: 100 },
+                { key: 'auto_lock_after', label: 'Auto-lock after buzzes (blank = off)', max: 100 },
               ] as const
             ).map((f) => (
               <label key={f.key}>
@@ -1289,6 +1308,14 @@ export function SettingsView({ client }: { client: QuizClient }) {
                   )
                 }
               />
+            </label>
+            <label className="check-label">
+              <input
+                type="checkbox"
+                checked={values.auto_start_timer ?? false}
+                onChange={(e) => field('auto_start_timer', e.target.checked)}
+              />{' '}
+              Start the timer automatically with each question
             </label>
             <label className="check-label">
               <input
@@ -1338,7 +1365,7 @@ export function SettingsView({ client }: { client: QuizClient }) {
               <input
                 type="number"
                 min={0}
-                max={50}
+                max={100}
                 required
                 value={values.default_display_limit}
                 onChange={(e) => field('default_display_limit', Number(e.target.value))}

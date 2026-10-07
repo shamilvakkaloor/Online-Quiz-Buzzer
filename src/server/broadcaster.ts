@@ -58,7 +58,7 @@ export function markDirty(quiz: string) {
     } finally {
       state!.running = false;
       if (state!.dirty)
-        state!.timer = setTimeout(flush, Math.max(0, 200 - (Date.now() - state!.last)));
+        state!.timer = setTimeout(flush, Math.max(0, 1500 - (Date.now() - state!.last)));
       else {
         const finished = state;
         setTimeout(() => {
@@ -69,6 +69,6 @@ export function markDirty(quiz: string) {
     }
   };
   if (state.running || state.timer) return;
-  if (Date.now() - state.last >= 200) void flush();
-  else state.timer = setTimeout(flush, 200 - (Date.now() - state.last));
+  if (Date.now() - state.last >= 1500) void flush();
+  else state.timer = setTimeout(flush, 1500 - (Date.now() - state.last));
 }

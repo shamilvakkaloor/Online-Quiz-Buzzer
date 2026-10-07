@@ -29,6 +29,10 @@ const errors: Record<string, string> = {
   STALE_SESSION: 'The question changed. Wait for the current buzzer.',
   INVALID_CREDENTIALS: 'The quiz ID or password is incorrect.',
   INVALID_CODE: 'That access code is not valid.',
+  REQUEST_TIMEOUT:
+    'The connection is taking too long. Checking the latest quiz state—your action may already have been saved. Please check before trying again.',
+  CONNECTION_FAILED:
+    'Connection interrupted. Reconnecting to the quiz; check your internet connection.',
   RATE_LIMITED: 'Too many attempts. Please wait a moment and try again.',
   FORBIDDEN: 'Your role does not have permission for this action.',
   UNAUTHENTICATED: 'Your session expired. Please sign in again.',
@@ -56,21 +60,30 @@ export async function request<T = unknown>(
   tokenOverride?: string,
 ): Promise<T> {
   const separator = path.includes('?') ? '&' : '?';
-  const response = await fetch(
-    `/api/${path}${session?.quiz_id ? `${separator}quiz=${session.quiz_id}` : ''}`,
-    {
-      method: body === undefined ? 'GET' : 'POST',
-      headers: {
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-        ...(tokenOverride || session?.token
-          ? { Authorization: `Bearer ${tokenOverride || session?.token}` }
-          : {}),
+  let response: Response;
+  try {
+    response = await fetch(
+      `/api/${path}${session?.quiz_id ? `${separator}quiz=${session.quiz_id}` : ''}`,
+      {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: {
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(tokenOverride || session?.token
+            ? { Authorization: `Bearer ${tokenOverride || session?.token}` }
+            : {}),
+        },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15000),
       },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      cache: 'no-store',
-      signal: AbortSignal.timeout(15000),
-    },
-  );
+    );
+  } catch (error) {
+    throw new ApiError(
+      '',
+      (error as Error).name === 'TimeoutError' ? 'REQUEST_TIMEOUT' : 'CONNECTION_FAILED',
+    );
+  }
+  if ([502, 503, 504].includes(response.status)) throw new ApiError('', 'CONNECTION_FAILED');
   const data = await response.json();
   if (!response.ok)
     throw new ApiError(

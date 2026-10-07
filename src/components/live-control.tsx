@@ -33,7 +33,8 @@ export function LiveControl({
 }) {
   const s = client.state!,
     timer = useTimer(s, client.offset),
-    [finish, setFinish] = useState(false);
+    [finish, setFinish] = useState(false),
+    [revealFinal, setRevealFinal] = useState(false);
   const next = s.questions.find((q) => q.status === 'PENDING'),
     active = s.question?.status === 'ACTIVE',
     started = s.live.status === 'LIVE',
@@ -54,7 +55,6 @@ export function LiveControl({
           </h1>
           <p>You bring the questions. We’ll handle the quick reactions.</p>
         </div>
-        <SoundButton count={s.buzz_count} />
       </div>
       <div className="metrics-row">
         <div className="metric">
@@ -65,7 +65,7 @@ export function LiveControl({
             <span>Participants</span>
             <strong>
               {s.participants.length}
-              <small> / {s.settings?.max_participants || 50}</small>
+              <small> / {s.settings?.max_participants || 100}</small>
             </strong>
           </div>
           <span className="metric-note">
@@ -397,7 +397,7 @@ export function LiveControl({
                 Recorded{' '}
                 <strong>
                   {s.buzz_count} /{' '}
-                  {s.session?.record_limit || s.settings?.max_buzzes_per_question || 50}
+                  {s.session?.record_limit || s.settings?.max_buzzes_per_question || 100}
                 </strong>
               </span>
               <label>
@@ -410,11 +410,11 @@ export function LiveControl({
                     safe(client.command('SET_DISPLAY_LIMIT', { value: Number(e.target.value) }))
                   }
                 >
-                  {[...new Set([0, 1, 3, 5, 10, 25, 50, s.live.display_limit])]
+                  {[...new Set([0, 1, 3, 5, 10, 25, 50, 100, s.live.display_limit])]
                     .sort((a, b) => a - b)
                     .map((n) => (
                       <option value={n} key={n}>
-                        {n === 50 ? 'All positions' : n === 0 ? 'None' : `Top ${n}`}
+                        {n === 100 ? 'All positions' : n === 0 ? 'None' : `Top ${n}`}
                       </option>
                     ))}
                 </select>
@@ -543,6 +543,14 @@ export function LiveControl({
       </div>
       {finish && (
         <Modal title="Ready for the final applause?" onClose={() => setFinish(false)}>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={revealFinal}
+              onChange={(e) => setRevealFinal(e.target.checked)}
+            />{' '}
+            Reveal the final leaderboard on everyone’s screen
+          </label>
           <p className="muted">
             Finishing closes the quiz. You can still edit scores and reveal the leaderboard
             afterward.
@@ -562,7 +570,7 @@ export function LiveControl({
               disabled={client.busy}
               onClick={async () => {
                 try {
-                  await client.command('FINISH_QUIZ');
+                  await client.command('FINISH_QUIZ', { value: revealFinal });
                   setFinish(false);
                 } catch {}
               }}

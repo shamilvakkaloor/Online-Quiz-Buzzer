@@ -57,6 +57,7 @@ export type Settings = {
   lock_on_timer_end: boolean;
   default_timer_ms: number | null;
   audience_enabled: boolean;
+  auto_start_timer: boolean;
 };
 export type Snapshot = {
   quiz: { id: string; title: string; quiz_code: string; created_at: string };

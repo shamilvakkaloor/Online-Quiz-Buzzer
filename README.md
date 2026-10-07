@@ -44,7 +44,7 @@ Production defaults to **practice mode disabled**, even if Supabase credentials 
 - Version-checked live commands, lock / reopen, pause / resume, absolute server timer with measured client clock offset.
 - Decimal and negative scores, revision checking, permanent score revisions and audit history.
 - Manual and milestone-based leaderboard reveals; hidden data is filtered on the server.
-- Private realtime broadcasts, per-member private Presence channels, periodic state recovery and member activity heartbeats.
+- Private realtime broadcasts, staggered state recovery and member activity heartbeats.
 - Server-only service credentials, locally verified JWTs, scrypt password hashing, Zod validation and database-backed per-identity / per-code rate limits.
 - Responsive host, participant, scorekeeper and audience interfaces; optional sound, haptics, QR codes and fullscreen audience display.
 
@@ -52,7 +52,7 @@ Production defaults to **practice mode disabled**, even if Supabase credentials 
 
 Use a fresh dedicated Supabase project. The migrations are initial migrations, not idempotent reset scripts.
 
-1. Apply `database/migrations/001_core.sql`, `002_snapshots.sql`, `003_supabase_security.sql`, `004_signup_hook.sql`, and `20261003151234_private_realtime_authorization.sql` **in order** using the Supabase SQL editor or your migration runner. The last three are Supabase-only; practice mode uses the first two. Realtime authorization helpers live in the unexposed `quiz_private` schema.
+1. Apply `database/migrations/001_core.sql`, `002_snapshots.sql`, `003_supabase_security.sql`, `004_signup_hook.sql`, and `20261003151234_private_realtime_authorization.sql`, then `20261005161120_event_experience_v2.sql` **in order** using the Supabase SQL editor or your migration runner. Migrations 003, 004 and private_realtime_authorization are Supabase-only; practice mode uses 001, 002 and event_experience_v2. Realtime authorization helpers live in the unexposed `quiz_private` schema.
 2. Create the owner’s email/password Auth user in the dashboard **before enabling the signup hook**. Add the owner's Auth UUID:
 
    ```sql
@@ -77,9 +77,13 @@ Use a fresh dedicated Supabase project. The migrations are initial migrations, n
 
 8. Start the app, sign into `/admin`, create a quiz, and use its credentials at `/quizmaster` to configure it.
 
-Supabase anonymous-auth limits can apply **per IP**, independently of this app’s per-member limits. Configure the project quota for a venue where 50 participants and staff share one public IP, and verify with a rehearsal. See the official [anonymous sign-in guidance](https://supabase.com/docs/guides/auth/auth-anonymous), [Auth hook documentation](https://supabase.com/docs/guides/auth/auth-hooks/before-user-created-hook), and [private realtime authorization documentation](https://supabase.com/docs/guides/realtime/authorization).
+Supabase anonymous-auth limits can apply **per IP**, independently of this app’s per-member limits. Configure the project quota for a venue where 100 participants and staff share one public IP, and verify with a rehearsal. See the official [anonymous sign-in guidance](https://supabase.com/docs/guides/auth/auth-anonymous), [Auth hook documentation](https://supabase.com/docs/guides/auth/auth-hooks/before-user-created-hook), and [private realtime authorization documentation](https://supabase.com/docs/guides/realtime/authorization).
 
 ## Hostinger deployment
+
+October 5 updates add Chrome installation (online PWA), role-specific titles and icons, individual branded PNG QR cards, 100 participant/buzz capacity, optional automatic timer start, sound controls with countdown cues, assigned-name personal-code joining, and animated final standings. Use **Settings → Buzzer & timer** for automatic start. **Finish quiz** explicitly asks whether to reveal final standings; a quiz-ended panel appears regardless. Sound requires one **Enable sound** click per screen because browsers restrict autoplay. The app never caches live state for offline play.
+
+Buzz requests now use one database round trip including both rate limit checks. Recovery reads avoid the shared quiz lock unless an expired timer must be closed. Broadcast receipt no longer triggers a full snapshot request from every screen. Timeouts show recovery guidance without automatically replaying non-idempotent actions. These changes reduce identified sources of load; they do not prove the cause of an individual historical timeout.
 
 The app uses standard `npm run build` and `npm start` on a Node.js web-app plan. Configure the environment above in Hostinger and deploy the repository with its included lockfile. Use **one Node instance** for V1 because the snapshot throttle is process-local. The production database remains Supabase; PGlite is only for local practice and tests.
 
@@ -91,7 +95,7 @@ Check `/api/health`, HTTPS, and `Cache-Control: no-store` on all API and live ro
 
 `npm run build` explicitly uses webpack because Hostinger's build environment failed to start a Turbopack CSS worker. The environment names above also accept Supabase's modern publishable (`NEXT_PUBLIC_SUPABASE_ANON_KEY`) and secret (`SUPABASE_SERVICE_ROLE_KEY`) keys. The secret key is stored only in Hostinger's server environment and ignored local provisioning files.
 
-Owner credentials are delivered privately outside this repository. CAPTCHA is not yet configured. Anonymous sign-in capacity is set to 100 per hour per IP to accommodate a 50-team venue; retain browser sessions between rounds. Rehearse from the venue network before a real event and review the deployment checks below.
+Owner credentials are delivered privately outside this repository. CAPTCHA is not yet configured. Anonymous sign-in capacity was raised to 200 per hour per IP on October 7 with owner approval, allowing 100 participants plus staff on one network; retain browser sessions between rounds. Rehearse from the venue network before a real event and review the deployment checks below.
 
 Deployment checks passed: HTTPS and no-store responses on all role pages; healthy Supabase connection; owner sign-in; disabled production demo endpoint; 50 joined teams across 20 rounds with 1,200 buzz requests (including duplicates), contiguous ranks, and 1,000 accepted-buzz recovery checks. Real Supabase sockets received private staff/display snapshots, denied participant access to staff, rejected forged client broadcasts, and stopped delivering new snapshots to a revoked connection. Audience/scorekeeper joins and decimal score revisions also passed. The test quiz is retained as a completed **Deployment rehearsal — 50 teams** event for audit.
 
@@ -135,9 +139,9 @@ Before a real event:
 
 - Every mutation locks `quiz_live_state` **before** membership/session rows. `record_buzz` also locks the buzzer-session row. This uniform lock order avoids deadlock between commands, revocation, timers and buzzes.
 - Channels are `quiz:<quiz UUID>:<epoch>:staff` and `...:display`. Revoking membership advances the epoch. Supabase authorizes sockets on subscription; a membership policy alone cannot stop an already subscribed socket receiving later messages. Publishing only to the current epoch closes that gap. Authorized screens recover and resubscribe; revoked screens get an explicit session-ended view.
-- Presence uses `...:presence:<member UUID>` so RLS can bind publishing to a member’s own topic. It does not trust a client-selected presence key on a shared topic. Connected labels use server-observed activity within 20 seconds as the fallback, and presence is never used to accept or rank a buzz.
-- One role-filtered `STATE` snapshot carries the state/buzz/leaderboard sections together. Leading/trailing coalescing targets a 200 ms window per quiz. The staff broadcast omits access codes and membership administration; quizmasters fetch those through their authorized snapshot.
-- Practice clients recover every 1.5 seconds; production clients also recover every 5 seconds to handle dropped messages and epoch changes. Own buzz results arrive immediately in the HTTP response.
+- Online labels use server-observed activity within 40 seconds. Per-member Presence subscriptions are no longer opened, avoiding 100 extra host channels and join-time presence bursts. Existing restrictive policies remain available for compatibility.
+- One role-filtered `STATE` snapshot carries the state/buzz/leaderboard sections together. Leading/trailing coalescing targets a 1.5 second window per quiz. The staff broadcast omits access codes and membership administration; quizmasters fetch those through their authorized snapshot.
+- Practice clients recover every 1.5 seconds; production clients recover at a per-client staggered interval of 8–12 seconds to handle dropped messages and epoch changes. Own buzz results arrive immediately in the HTTP response.
 - Quizmaster setup uses validated POST mutation payloads with an `operation` field for edits/deletes. The documented CRUD resource routes are available through the common route dispatcher. No client writes database tables.
 - CSV output quotes fields and neutralizes spreadsheet-formula prefixes in untrusted participant names. Full audit, score revisions and historical buzz records are available in the owner’s JSON export.
 

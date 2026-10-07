@@ -51,7 +51,7 @@ export const commandSchema = z
       .object({
         question_id: uuid.optional(),
         reason: z.string().max(200).optional(),
-        value: z.union([z.number().int().min(0).max(50), z.boolean()]).optional(),
+        value: z.union([z.number().int().min(0).max(100), z.boolean()]).optional(),
         duration_ms: z.number().int().min(1000).max(3600000).optional(),
       })
       .strict()
@@ -111,24 +111,25 @@ export const setupSchemas: Record<string, z.ZodType> = {
       display_name: name.optional(),
       identifier: name.optional(),
       type: z.enum(['PERSON', 'TEAM']).optional(),
-      items: z.array(participant).min(1).max(50).optional(),
+      items: z.array(participant).min(1).max(100).optional(),
     })
     .strict(),
   settings: z
     .object({
-      max_participants: z.number().int().min(1).max(50),
-      max_buzzes_per_question: z.number().int().min(1).max(50),
-      default_display_limit: z.number().int().min(0).max(50),
+      max_participants: z.number().int().min(1).max(100),
+      max_buzzes_per_question: z.number().int().min(1).max(100),
+      default_display_limit: z.number().int().min(0).max(100),
       show_own_position: z.boolean(),
       default_positive_score: score,
       default_negative_score: score,
       default_zero_score: score.nullable(),
       participant_mode: z.enum(['OPEN', 'PRE_REGISTERED']),
       identifier_style: name,
-      auto_lock_after: z.number().int().min(1).max(50).nullable(),
+      auto_lock_after: z.number().int().min(1).max(100).nullable(),
       lock_on_timer_end: z.boolean(),
       default_timer_ms: z.number().int().min(1000).max(3600000).nullable(),
       audience_enabled: z.boolean(),
+      auto_start_timer: z.boolean().default(false),
     })
     .strict(),
   access: z

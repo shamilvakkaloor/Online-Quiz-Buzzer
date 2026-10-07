@@ -19,8 +19,17 @@ test('Supabase policy migration: denied client table access and RPC execution; t
       '003_supabase_security.sql',
       '004_signup_hook.sql',
       '20261003151234_private_realtime_authorization.sql',
+      '20261005161120_event_experience_v2.sql',
     ])
       await db.exec(await readFile(`database/migrations/${file}`, 'utf8'));
+    assert.equal(
+      (
+        await db.query<{ allowed: boolean }>(
+          "select has_function_privilege('authenticated','api_record_buzz(uuid,uuid,uuid)','execute') or has_function_privilege('anon','participant_code_info(text)','execute') as allowed",
+        )
+      ).rows[0].allowed,
+      false,
+    );
     assert.equal(
       (
         await db.query<{ r: string | null }>(
