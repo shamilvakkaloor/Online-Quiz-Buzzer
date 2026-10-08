@@ -162,6 +162,17 @@ export function JoinScreen({ client, role }: { client: QuizClient; role: Role })
         <small>Made for your next great quiz.</small>
       </section>
       <section className="join-form-side">
+        <button
+          type="button"
+          className="brand join-mobile-brand"
+          aria-label="Buzzer"
+          onClick={tapBuzzer}
+        >
+          <span className="brand-mark">
+            <Radio size={23} strokeWidth={2.5} />
+          </span>
+          buzzer<span className="brand-period">.</span>
+        </button>
         <nav className="role-links">
           <a href="/join" className={role === 'PARTICIPANT' ? 'selected' : ''}>
             Play
