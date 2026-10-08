@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Check, Radio, ShieldCheck, Zap } from 'lucide-react';
 import type { Role } from '@/types/quiz';
 import type { QuizClient } from '@/lib/use-quiz';
@@ -7,6 +8,22 @@ import { browserClient, request, type Session } from '@/lib/client';
 import { Brand, Spinner } from './ui';
 import { Captcha } from './captcha';
 export function JoinScreen({ client, role }: { client: QuizClient; role: Role }) {
+  const router = useRouter();
+  const adminShortcut = useRef({ count: 0, startedAt: 0 });
+  function tapBuzzer() {
+    const now = performance.now();
+    const taps = adminShortcut.current;
+    if (taps.count === 0 || now - taps.startedAt > 1500) {
+      taps.count = 1;
+      taps.startedAt = now;
+    } else {
+      taps.count += 1;
+    }
+    if (taps.count === 3) {
+      taps.count = 0;
+      router.push('/admin');
+    }
+  }
   const [code, setCode] = useState(''),
     [name, setName] = useState(''),
     [password, setPassword] = useState(''),
@@ -124,9 +141,9 @@ export function JoinScreen({ client, role }: { client: QuizClient; role: Role })
           <div className="orbit orbit-one" />
           <div className="orbit orbit-two" />
           <div className="art-star">✳</div>
-          <div className="art-buzzer">
+          <button type="button" className="art-buzzer" aria-label="Buzzer" onClick={tapBuzzer}>
             <Zap size={68} strokeWidth={1.7} />
-          </div>
+          </button>
           <span className="art-label">
             <span />
             QUICK THINKING. GOOD TIMES.

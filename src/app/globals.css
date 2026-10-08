@@ -2086,6 +2086,9 @@ strong {
   background: #e5edcf80;
 }
 .art-buzzer {
+  border: 0;
+  padding: 0;
+  touch-action: manipulation;
   z-index: 1;
   width: 140px;
   height: 140px;
